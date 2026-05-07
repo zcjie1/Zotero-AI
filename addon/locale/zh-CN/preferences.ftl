@@ -1,0 +1,14 @@
+prefs-title = Zotero AI
+pref-enable = 启用 AI 解析
+pref-api-endpoint = API 端点
+pref-api-key = API 密钥
+pref-model = 模型名称
+pref-system-prompt = 系统提示词
+pref-temperature = 温度参数
+pref-max-tokens = 最大 Token
+pref-show-header = 在笔记首行添加 AI 解析标注
+pref-section-api = 🔑 API 设置
+pref-section-model = 🤖 模型参数
+pref-section-prompt = 📝 提示词
+pref-section-display = 📄 笔记设置
+pref-help = 构建信息: { "name" } { "version" } @ { "time" }

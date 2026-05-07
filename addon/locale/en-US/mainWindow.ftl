@@ -1,0 +1,15 @@
+menuitem-ai-parse = 🤖 AI Parse
+ai-parse-error-disabled = AI parsing is disabled
+ai-parse-error-no-api-key = Please configure API key in preferences first
+ai-parse-error-no-endpoint = Please configure API endpoint in preferences first
+ai-parse-error-no-pdf = Selected item has no PDF attachment
+ai-parse-error-no-content = Cannot read PDF content
+ai-parse-error-no-selection = Please select items to parse first
+ai-parse-error-no-regular-item = Selected items are not regular items (cannot parse attachments or notes directly)
+ai-parse-error = AI parsing error
+ai-parse-progress-start = Starting AI parsing...
+ai-parse-progress-parsing = Parsing
+ai-parse-result-complete = Parsing complete!
+ai-parse-result-success = Success
+ai-parse-result-failed = Failed
+ai-parse-result-items = items

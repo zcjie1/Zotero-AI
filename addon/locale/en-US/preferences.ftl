@@ -1,0 +1,14 @@
+prefs-title = Zotero AI
+pref-enable = Enable AI Parsing
+pref-api-endpoint = API Endpoint
+pref-api-key = API Key
+pref-model = Model Name
+pref-system-prompt = System Prompt
+pref-temperature = Temperature
+pref-max-tokens = Max Tokens
+pref-show-header = Add AI parsing label to note header
+pref-section-api = 🔑 API Settings
+pref-section-model = 🤖 Model Parameters
+pref-section-prompt = 📝 Prompt
+pref-section-display = 📄 Note Settings
+pref-help = Build Info: { "name" } { "version" } @ { "time" }

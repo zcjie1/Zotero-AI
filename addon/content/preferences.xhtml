@@ -1,0 +1,154 @@
+<linkset>
+  <html:link rel="localization" href="__addonRef__-preferences.ftl" />
+</linkset>
+<vbox
+  onload="Zotero.__addonInstance__.hooks.onPrefsEvent('load', { window })"
+  style="padding: 16px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;"
+>
+  <!-- ========== API Settings ========== -->
+  <html:h2
+    data-l10n-id="pref-section-api"
+    style="font-size: 14px; font-weight: 600; margin: 8px 0 8px 0; color: #6b7280;"
+  ></html:h2>
+
+  <groupbox style="margin: 0 0 12px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
+    <!-- API Endpoint -->
+    <hbox align="center" style="margin-bottom: 8px;">
+      <html:label
+        for="zotero-prefpane-__addonRef__-apiEndpoint"
+        data-l10n-id="pref-api-endpoint"
+        style="min-width: 100px; font-size: 13px; font-weight: 500;"
+      ></html:label>
+      <html:input
+        type="url"
+        id="zotero-prefpane-__addonRef__-apiEndpoint"
+        preference="apiEndpoint"
+        placeholder="https://api.openai.com"
+        style="flex: 1; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+      ></html:input>
+    </hbox>
+
+    <!-- API Key -->
+    <hbox align="center">
+      <html:label
+        for="zotero-prefpane-__addonRef__-apiKey"
+        data-l10n-id="pref-api-key"
+        style="min-width: 100px; font-size: 13px; font-weight: 500;"
+      ></html:label>
+      <html:input
+        type="password"
+        id="zotero-prefpane-__addonRef__-apiKey"
+        preference="apiKey"
+        placeholder="sk-..."
+        style="flex: 1; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+      ></html:input>
+    </hbox>
+  </groupbox>
+
+  <!-- ========== Model Parameters ========== -->
+  <html:h2
+    data-l10n-id="pref-section-model"
+    style="font-size: 14px; font-weight: 600; margin: 12px 0 8px 0; color: #6b7280;"
+  ></html:h2>
+
+  <groupbox style="margin: 0 0 12px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
+    <!-- Model -->
+    <hbox align="center" style="margin-bottom: 8px;">
+      <html:label
+        for="zotero-prefpane-__addonRef__-model"
+        data-l10n-id="pref-model"
+        style="min-width: 100px; font-size: 13px; font-weight: 500;"
+      ></html:label>
+      <html:input
+        type="text"
+        id="zotero-prefpane-__addonRef__-model"
+        preference="model"
+        placeholder="gpt-4o"
+        style="flex: 1; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+      ></html:input>
+    </hbox>
+
+    <!-- Temperature + Max Tokens in one row -->
+    <hbox align="center">
+      <!-- Temperature -->
+      <hbox align="center" style="flex: 1; margin-right: 16px;">
+        <html:label
+          for="zotero-prefpane-__addonRef__-temperature"
+          data-l10n-id="pref-temperature"
+          style="min-width: 100px; font-size: 13px; font-weight: 500;"
+        ></html:label>
+        <html:input
+          type="number"
+          id="zotero-prefpane-__addonRef__-temperature"
+          preference="temperature"
+          min="0"
+          max="2"
+          step="0.1"
+          style="width: 80px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+        ></html:input>
+      </hbox>
+
+      <!-- Max Tokens -->
+      <hbox align="center" style="flex: 1;">
+        <html:label
+          for="zotero-prefpane-__addonRef__-maxTokens"
+          data-l10n-id="pref-max-tokens"
+          style="font-size: 13px; font-weight: 500; margin-right: 8px; white-space: nowrap;"
+        ></html:label>
+        <html:input
+          type="number"
+          id="zotero-prefpane-__addonRef__-maxTokens"
+          preference="maxTokens"
+          min="1"
+          max="128000"
+          step="1"
+          style="width: 80px; padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;"
+        ></html:input>
+      </hbox>
+    </hbox>
+  </groupbox>
+
+  <!-- ========== Prompt ========== -->
+  <html:h2
+    data-l10n-id="pref-section-prompt"
+    style="font-size: 14px; font-weight: 600; margin: 12px 0 8px 0; color: #6b7280;"
+  ></html:h2>
+
+  <groupbox style="margin: 0 0 12px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+    <html:label
+      data-l10n-id="pref-system-prompt"
+      style="font-weight: 500; font-size: 13px; margin-bottom: 4px;"
+    ></html:label>
+    <html:textarea
+      id="zotero-prefpane-__addonRef__-systemPrompt"
+      preference="systemPrompt"
+      rows="6"
+      style="width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 12px; line-height: 1.5; resize: vertical; max-width: 100%;"
+    ></html:textarea>
+  </groupbox>
+
+  <!-- ========== Note Settings ========== -->
+  <html:h2
+    data-l10n-id="pref-section-display"
+    style="font-size: 14px; font-weight: 600; margin: 12px 0 8px 0; color: #6b7280;"
+  ></html:h2>
+
+  <groupbox style="margin: 0 0 12px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px;">
+    <html:label style="display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+      <html:input
+        type="checkbox"
+        id="zotero-prefpane-__addonRef__-showHeader"
+        preference="showHeader"
+        style="margin: 0;"
+      />
+      <html:span data-l10n-id="pref-show-header"></html:span>
+    </html:label>
+  </groupbox>
+
+  <!-- Build Info -->
+  <html:p
+    data-l10n-id="pref-help"
+    data-l10n-args='{"time": "__buildTime__","name": "__addonName__","version":"__buildVersion__"}'
+    style="font-size: 11px; color: #9ca3af; text-align: center; margin: 12px 0 0 0;"
+  ></html:p>
+</vbox>

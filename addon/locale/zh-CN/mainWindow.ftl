@@ -1,0 +1,15 @@
+menuitem-ai-parse = 🤖 AI 解析
+ai-parse-error-disabled = AI 解析功能未启用
+ai-parse-error-no-api-key = 请先在偏好设置中配置 API 密钥
+ai-parse-error-no-endpoint = 请先在偏好设置中配置 API 端点
+ai-parse-error-no-pdf = 所选条目没有 PDF 附件
+ai-parse-error-no-content = 无法读取 PDF 内容
+ai-parse-error-no-selection = 请先选择要解析的条目
+ai-parse-error-no-regular-item = 所选条目不是常规条目（不支持直接解析附件或笔记）
+ai-parse-error = AI 解析出错
+ai-parse-progress-start = 开始 AI 解析...
+ai-parse-progress-parsing = 正在解析
+ai-parse-result-complete = 解析完成！
+ai-parse-result-success = 成功
+ai-parse-result-failed = 失败
+ai-parse-result-items = 个条目
