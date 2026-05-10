@@ -1,7 +1,7 @@
 {
   "name": "zotero-ai",
   "type": "module",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Zotero AI 插件 - 使用 AI 解析 PDF 附件并生成笔记",
   "config": {
     "addonName": "Zotero AI",
