@@ -15,6 +15,9 @@ declare namespace _ZoteroTypes {
       "temperature": number;
       "maxTokens": number;
       "showHeader": boolean;
+      "pythonPath": string;
+      "pythonScriptPath": string;
+      "enableVision": boolean;
     };
   }
 }

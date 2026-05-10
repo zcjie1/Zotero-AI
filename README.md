@@ -8,8 +8,10 @@
 ## 功能
 
 - 📄 **PDF 全文提取** — 通过 Zotero 内置全文索引读取 PDF 内容
+- 🖼️ **图表提取** — 使用 DocLayout-YOLO 自动检测并裁剪论文中的图表、表格
+- 👁️ **视觉识别 (Vision)** — 可选将提取的图表发送给多模态模型，在笔记正文中引用图片
 - 🤖 **AI 解析** — 将全文 + 自定义提示词发送给 OpenAI 兼容 API（`/v1/chat/completions`）
-- 📝 **Markdown 笔记** — AI 返回的 Markdown 自动渲染为富文本笔记，支持 LaTeX 数学公式
+- 📝 **Markdown 笔记** — AI 返回的 Markdown 自动渲染为富文本笔记，支持 LaTeX 数学公式、图片嵌入、引用块
 - ⚡ **并行解析** — 多选条目时同时解析，独立窗口实时显示每个条目的进度
 - 🌙 **深色模式** — 解析状态窗口自适应 Zotero 主题
 - 🗑️ **干净卸载** — 移除插件后不残留菜单项
@@ -24,15 +26,40 @@
 
 安装后在 `编辑` → `设置` → `Zotero AI` 中配置：
 
-| 设置项 | 说明 | 默认值 |
-|--------|------|--------|
-| API 端点 | OpenAI 兼容 API 基地址（不含 `/v1`） | `https://api.openai.com` |
-| API 密钥 | 你的 API Key | — |
-| 模型名称 | 模型 ID | `gpt-4o` |
-| 温度参数 | 输出随机性 (0–2) | `0.7` |
-| 最大 Token | 回复长度上限 | `4096` |
-| 系统提示词 | 指导 AI 分析的指令 | （学术论文分析模板） |
-| 笔记首行标注 | 是否在笔记中显示解析元信息 | 关闭 |
+| 设置项         | 说明                                 | 默认值                   |
+| -------------- | ------------------------------------ | ------------------------ |
+| API 端点       | OpenAI 兼容 API 基地址（不含 `/v1`） | `https://api.openai.com` |
+| API 密钥       | 你的 API Key                         | —                        |
+| 模型名称       | 模型 ID                              | `gpt-4o`                 |
+| 温度参数       | 输出随机性 (0–2)                     | `0.7`                    |
+| 最大 Token     | 回复长度上限                         | `4096`                   |
+| 系统提示词     | 指导 AI 分析的指令                   | （学术论文分析模板）     |
+| 笔记首行标注   | 是否在笔记中显示解析元信息           | 关闭                     |
+
+### 图表提取（可选）
+
+若要启用图表提取，需额外配置 Python 环境：
+
+```bash
+# 1. 创建 conda 环境
+conda create --prefix ./python/.venv python=3.10 -y
+conda install --prefix ./python/.venv pytorch cpuonly -c pytorch -y
+conda run --prefix ./python/.venv pip install -r python/requirements.txt
+
+# 2. 下载模型（仅需一次）
+conda run --prefix ./python/.venv python python/download_model.py
+```
+
+然后在 Zotero 偏好设置中配置：
+
+| 设置项           | 说明                              | 示例值                                               |
+| ---------------- | --------------------------------- | ---------------------------------------------------- |
+| 🐍 Python 路径    | 指向 conda 环境中的 python.exe    | `D:\Code\zotero-ai\python\.venv\python.exe`          |
+| 📜 提取脚本路径    | extract_figures.py 的完整路径     | `D:\Code\zotero-ai\python\extract_figures.py`        |
+| 👁️ 启用视觉识别   | 是否将图片发送给多模态模型分析     | 开启 / 关闭                                          |
+
+- **Vision 开启**：图片随全文一起发送给 LLM，模型可在笔记正文中用 `[[FIGURE:Fig1.png]]` 标记图片位置
+- **Vision 关闭**：仅提取图片，自动追加到笔记末尾
 
 ## 使用
 
@@ -61,12 +88,16 @@ zotero-ai/
 │   │   ├── preferences.xhtml # 设置面板 UI
 │   │   └── icons/            # 图标
 │   └── locale/               # 中英文翻译
+├── python/
+│   ├── requirements.txt      # Python 依赖
+│   ├── download_model.py     # 模型下载脚本（仅需运行一次）
+│   └── extract_figures.py    # PDF 图表提取 CLI
 └── src/
     ├── index.ts              # 入口
     ├── addon.ts              # 插件主类
     ├── hooks.ts              # 生命周期 & 菜单 & 状态窗口
     ├── modules/
-    │   ├── aiParse.ts        # AI 解析核心
+    │   ├── aiParse.ts        # AI 解析核心 + 图表提取调度 + Markdown 渲染
     │   └── preferenceScript.ts
     └── utils/                # 工具函数
 ```

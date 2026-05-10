@@ -125,10 +125,7 @@ function showError(msg: string) {
 }
 
 function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 const STATUS_ICONS: Record<string, string> = {
@@ -162,7 +159,8 @@ function buildStatusDialog(items: Zotero.Item[]): DialogHelper {
       tag: "div",
       namespace: "html",
       attributes: {
-        style: "min-width:420px;min-height:120px;max-height:450px;overflow-y:auto;padding:8px;",
+        style:
+          "min-width:420px;min-height:120px;max-height:450px;overflow-y:auto;padding:8px;",
       },
       properties: { innerHTML: bodyHtml },
     })
@@ -179,35 +177,35 @@ function buildStatusDialog(items: Zotero.Item[]): DialogHelper {
   return dlg as DialogHelper;
 }
 
-async function runParallelParse(
-  dialog: DialogHelper,
-  items: Zotero.Item[],
-) {
+async function runParallelParse(dialog: DialogHelper, items: Zotero.Item[]) {
   const win = dialog.window;
   if (!win) return;
 
   const summaryEl = win.document.getElementById("zoteroai-status-summary");
 
   try {
-    const { success, failed } = await parseItemsWithAI(
-      items,
-      (results) => {
-        for (const r of results) {
-          const iconEl = win.document.getElementById(`zoteroai-icon-${r.item.id}`);
-          const textEl = win.document.getElementById(`zoteroai-text-${r.item.id}`);
-          if (iconEl) iconEl.textContent = STATUS_ICONS[r.status] || "\u2753";
-          if (textEl) {
-            if (r.error) {
-              textEl.innerHTML = `${escapeHtml(r.title)} <span style="color:#ef4444;font-size:11px;">(${escapeHtml(r.error)})</span>`;
-            }
-          }
-          if (summaryEl) {
-            const done = results.filter((x) => x.status === "done" || x.status === "failed").length;
-            summaryEl.innerHTML = `<span style="color:inherit;opacity:0.7;font-weight:600;">${done}/${results.length} 已完成</span>`;
+    const { success, failed } = await parseItemsWithAI(items, (results) => {
+      for (const r of results) {
+        const iconEl = win.document.getElementById(
+          `zoteroai-icon-${r.item.id}`,
+        );
+        const textEl = win.document.getElementById(
+          `zoteroai-text-${r.item.id}`,
+        );
+        if (iconEl) iconEl.textContent = STATUS_ICONS[r.status] || "\u2753";
+        if (textEl) {
+          if (r.error) {
+            textEl.innerHTML = `${escapeHtml(r.title)} <span style="color:#ef4444;font-size:11px;">(${escapeHtml(r.error)})</span>`;
           }
         }
-      },
-    );
+        if (summaryEl) {
+          const done = results.filter(
+            (x) => x.status === "done" || x.status === "failed",
+          ).length;
+          summaryEl.innerHTML = `<span style="color:inherit;opacity:0.7;font-weight:600;">${done}/${results.length} 已完成</span>`;
+        }
+      }
+    });
 
     if (summaryEl) {
       if (failed === 0) {

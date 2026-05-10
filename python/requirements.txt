@@ -1,0 +1,9 @@
+# Zotero AI — Python 依赖
+# 安装方式（conda）：
+#   conda create --prefix ./.venv python=3.10 -y
+#   conda install --prefix ./.venv pytorch cpuonly -c pytorch -y
+#   conda run --prefix ./.venv pip install -r requirements.txt
+
+pymupdf>=1.27.0
+doclayout-yolo>=0.0.4
+huggingface_hub>=1.0.0
