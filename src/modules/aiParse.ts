@@ -95,6 +95,7 @@ async function getPythonScriptPath(): Promise<string | null> {
 
 interface FigureMeta {
   id: string;
+  kind?: string;
   caption: string;
   path: string;
   page: number;
@@ -113,9 +114,81 @@ interface ExtractResult {
   tempDir: string;
 }
 
+export type FigureCacheMode = "reuse" | "refresh";
+
+export interface AIParseOptions {
+  figureCacheMode?: FigureCacheMode;
+}
+
+function normalizeMaxFigures(value: unknown): number {
+  const parsed = Number(value);
+  const normalized = Number.isFinite(parsed)
+    ? Math.max(1, Math.min(50, Math.round(parsed)))
+    : 5;
+  if (value === undefined || value === null || value === "") {
+    Zotero.Prefs.set(
+      `${addon.data.config.prefsPrefix}.maxFigures`,
+      normalized,
+      true,
+    );
+  }
+  return normalized;
+}
+
+function parseFigureMetadata(json: unknown, maxFigures: number): FigureMeta[] {
+  const payload = json as { figures?: Array<Record<string, unknown>> };
+  return (payload.figures || [])
+    .map((f: Record<string, unknown>) => ({
+      id: String(f.id || ""),
+      kind: f.kind ? String(f.kind) : undefined,
+      caption: String(f.caption || ""),
+      path: String(f.path || ""),
+      page: Number(f.page || 0),
+      confidence: Number(f.confidence || 0),
+    }))
+    .filter((f) => f.path)
+    .slice(0, maxFigures);
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await IOUtils.stat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function readCachedFigures(
+  outputDir: string,
+  maxFigures: number,
+): Promise<ExtractResult | null> {
+  const metaPath = PathUtils.join(outputDir, "figures.json");
+  try {
+    const text = (await Zotero.File.getContentsAsync(metaPath)) as string;
+    const figures = parseFigureMetadata(JSON.parse(text), maxFigures);
+
+    for (const fig of figures) {
+      const imagePath = PathUtils.join(outputDir, fig.path);
+      if (!(await pathExists(imagePath))) {
+        ztoolkit.log("[AI Parse] Cached figure missing:", imagePath);
+        return null;
+      }
+    }
+
+    ztoolkit.log(
+      `[AI Parse] Reusing ${figures.length} cached figure(s) from ${outputDir}`,
+    );
+    return { figures, tempDir: outputDir };
+  } catch {
+    return null;
+  }
+}
+
 async function extractFiguresWithPython(
   pdf: Zotero.Item,
   outputDir: string,
+  maxFigures: number,
 ): Promise<ExtractResult | null> {
   const pythonPath = resolvePythonwPath();
   if (!pythonPath) {
@@ -165,7 +238,7 @@ async function extractFiguresWithPython(
       pdfPath,
       outputDir,
       "--max-figures",
-      "5",
+      String(maxFigures),
     ]);
     if (result instanceof Error) {
       ztoolkit.log("[AI Parse] Python exec returned Error:", String(result));
@@ -225,15 +298,7 @@ async function extractFiguresWithPython(
         ztoolkit.log("[AI Parse] Python error:", json.error || "unknown");
         return null;
       }
-      const figures: FigureMeta[] = (json.figures || []).map(
-        (f: Record<string, unknown>) => ({
-          id: String(f.id || ""),
-          caption: String(f.caption || ""),
-          path: String(f.path || ""),
-          page: Number(f.page || 0),
-          confidence: Number(f.confidence || 0),
-        }),
-      );
+      const figures = parseFigureMetadata(json, maxFigures);
       ztoolkit.log(`[AI Parse] Extracted ${figures.length} figures`);
       return { figures, tempDir: outputDir };
     } catch {
@@ -503,7 +568,10 @@ async function sendChatRequest(
 // Orchestrator
 // ---------------------------------------------------------------------------
 
-export async function parseItemWithAI(item: Zotero.Item): Promise<void> {
+export async function parseItemWithAI(
+  item: Zotero.Item,
+  options: AIParseOptions = {},
+): Promise<void> {
   const endpoint = getPref("apiEndpoint") as string;
   const apiKey = getPref("apiKey") as string;
   const model = getPref("model") as string;
@@ -511,6 +579,8 @@ export async function parseItemWithAI(item: Zotero.Item): Promise<void> {
   const temperature = Number(getPref("temperature"));
   const maxTokens = Number(getPref("maxTokens"));
   const enableVision = getPref("enableVision") as boolean;
+  const maxFigures = normalizeMaxFigures(getPref("maxFigures"));
+  const figureCacheMode = options.figureCacheMode || "reuse";
 
   if (!apiKey) throw new Error(getString("ai-parse-error-no-api-key"));
   if (!endpoint) throw new Error(getString("ai-parse-error-no-endpoint"));
@@ -540,7 +610,7 @@ export async function parseItemWithAI(item: Zotero.Item): Promise<void> {
   // - enableVision=true  → send images to LLM, use [[FIGURE:xxx]] placeholders
   // - enableVision=false → extract figures but append them at end of note
   let figureBase64Map: Map<string, FigureImage> | undefined;
-  let visionImages: Array<{
+  const visionImages: Array<{
     filename: string;
     base64: string;
     caption: string;
@@ -552,89 +622,95 @@ export async function parseItemWithAI(item: Zotero.Item): Promise<void> {
     `item_${item.id}`,
   );
   try {
-    try {
-      const extractResult = await extractFiguresWithPython(pdfs[0], tempDir);
-      if (extractResult && extractResult.figures.length > 0) {
-        figureBase64Map = new Map();
+    let extractResult: ExtractResult | null = null;
 
-        for (const fig of extractResult.figures) {
-          const image = await loadFigureAsBase64(
-            extractResult.tempDir,
-            fig.path,
-          );
-          if (!image) continue;
+    if (figureCacheMode === "refresh") {
+      try {
+        await IOUtils.remove(tempDir, { recursive: true });
+      } catch {
+        // Cache may not exist yet
+      }
+    } else {
+      extractResult = await readCachedFigures(tempDir, maxFigures);
+    }
 
-          figureBase64Map.set(fig.path, image);
+    if (!extractResult) {
+      extractResult = await extractFiguresWithPython(
+        pdfs[0],
+        tempDir,
+        maxFigures,
+      );
+    }
 
-          if (enableVision) {
-            visionImages.push({
-              filename: fig.path,
-              base64: image.dataURI,
-              caption: fig.caption,
-            });
-          }
+    if (extractResult && extractResult.figures.length > 0) {
+      figureBase64Map = new Map();
+
+      for (const fig of extractResult.figures) {
+        const image = await loadFigureAsBase64(extractResult.tempDir, fig.path);
+        if (!image) continue;
+
+        figureBase64Map.set(fig.path, image);
+
+        if (enableVision) {
+          visionImages.push({
+            filename: fig.path,
+            base64: image.dataURI,
+            caption: fig.caption,
+          });
         }
       }
-    } catch (e) {
-      ztoolkit.log(
-        "[AI Parse] Figure extraction failed, continuing text-only:",
-        e,
-      );
     }
-
-    // --- Build user message ---
-    // When vision is enabled, include figure list + [[FIGURE:xxx]] instruction.
-    // When vision is disabled, don't mention figures (they'll be appended later).
-    const figureList =
-      enableVision && visionImages.length > 0
-        ? `\n提取到的图片及原标题：\n${visionImages.map((i) => `- ${i.filename}: ${i.caption || "(无标题)"}`).join("\n")}`
-        : "";
-
-    const userMsg = [
-      `请分析以下论文内容。`,
-      `条目标题: ${itemTitle}`,
-      figureList,
-      ``,
-      ...contents,
-    ].join("\n");
-
-    // --- Send to API (vision or text) ---
-    let result: string | null;
-    if (enableVision && visionImages.length > 0) {
-      result = await sendVisionChatRequest(
-        chatEndpoint,
-        apiKey,
-        model,
-        systemPrompt,
-        userMsg,
-        visionImages,
-        maxTokens,
-        temperature,
-      );
-    } else {
-      result = await sendChatRequest(
-        chatEndpoint,
-        apiKey,
-        model,
-        systemPrompt,
-        userMsg,
-        maxTokens,
-        temperature,
-      );
-    }
-
-    if (!result) throw new Error(getString("ai-parse-error-no-content"));
-
-    await createChildNote(item, result, model, figureBase64Map);
-  } finally {
-    // Always clean up temp directory — even on failure, to prevent
-    // stale files from interfering with the next parse of the same item.
-    try {
-      await IOUtils.remove(tempDir, { recursive: true });
-    } catch {
-      // Best-effort cleanup, directory may not exist
-    }
+  } catch (e) {
+    ztoolkit.log(
+      "[AI Parse] Figure extraction failed, continuing text-only:",
+      e,
+    );
   }
+
+  // --- Build user message ---
+  // When vision is enabled, include figure list + [[FIGURE:xxx]] instruction.
+  // When vision is disabled, don't mention figures (they'll be appended later).
+  const figureList =
+    enableVision && visionImages.length > 0
+      ? `\n提取到的图片及原标题：\n${visionImages.map((i) => `- ${i.filename}: ${i.caption || "(无标题)"}`).join("\n")}`
+      : "";
+
+  const userMsg = [
+    `请分析以下论文内容。`,
+    `条目标题: ${itemTitle}`,
+    figureList,
+    ``,
+    ...contents,
+  ].join("\n");
+
+  // --- Send to API (vision or text) ---
+  let result: string | null;
+  if (enableVision && visionImages.length > 0) {
+    result = await sendVisionChatRequest(
+      chatEndpoint,
+      apiKey,
+      model,
+      systemPrompt,
+      userMsg,
+      visionImages,
+      maxTokens,
+      temperature,
+    );
+  } else {
+    result = await sendChatRequest(
+      chatEndpoint,
+      apiKey,
+      model,
+      systemPrompt,
+      userMsg,
+      maxTokens,
+      temperature,
+    );
+  }
+
+  if (!result) throw new Error(getString("ai-parse-error-no-content"));
+
+  await createChildNote(item, result, model, figureBase64Map);
 }
 
 // ---------------------------------------------------------------------------
@@ -810,8 +886,13 @@ function markdownToHtml(md: string): string {
     }
 
     // Display math placeholders should stay block-level.
-    if (/^\x00MATH(?:BLOCK|DISPLAY)\d+\x00$/.test(line.trim())) {
-      out.push(line.trim());
+    const trimmedLine = line.trim();
+    if (
+      (trimmedLine.startsWith("\x00MATHBLOCK") ||
+        trimmedLine.startsWith("\x00MATHDISPLAY")) &&
+      trimmedLine.endsWith("\x00")
+    ) {
+      out.push(trimmedLine);
       continue;
     }
 
@@ -1545,6 +1626,7 @@ export interface ParseTaskResult {
 export async function parseItemsWithAI(
   items: Zotero.Item[],
   onStatusChange: (results: ParseTaskResult[]) => void,
+  options: AIParseOptions = {},
 ): Promise<{ success: number; failed: number }> {
   const results: ParseTaskResult[] = items.map((item) => ({
     item,
@@ -1558,7 +1640,7 @@ export async function parseItemsWithAI(
     onStatusChange([...results]);
 
     try {
-      await parseItemWithAI(item);
+      await parseItemWithAI(item, options);
       results[idx].status = "done";
     } catch (e) {
       results[idx].status = "failed";

@@ -41,13 +41,24 @@ os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 # Helpers
 # ---------------------------------------------------------------------------
 
-# Patterns to extract figure/table numbers from captions.
-# Matches: "Figure 3", "Fig. 4", "Figure 5.2", "Fig 6(a)", "Table 1", etc.
-_FIGURE_NUM_RE = re.compile(
-    r"(?:Figure|Fig\.?|Table)\s+"
-    r"(\d+(?:\.[a-zA-Z0-9]+|\([a-zA-Z0-9]+\))?)",
+# Patterns to extract media numbers from captions.
+# Matches: "Figure 3", "Fig. 4", "Table 1", "Algorithm 2", "Alg. 3(a)", etc.
+_CAPTION_ID_RE = re.compile(
+    r"\b(?P<kind>Figure|Fig\.?|Table|Algorithm|Alg\.?)\s*"
+    r"(?P<num>\d+(?:(?:[.\-][a-zA-Z0-9]+)|(?:\([a-zA-Z0-9]+\)))*)",
     re.IGNORECASE,
 )
+_CAPTION_HEADER_RE = re.compile(
+    r"^\s*(?:\([a-zA-Z0-9]+\)\s*)*"
+    r"(?:Figure|Fig\.?|Table|Algorithm|Alg\.?)\s*"
+    r"\d+(?:(?:[.\-][a-zA-Z0-9]+)|(?:\([a-zA-Z0-9]+\)))*",
+    re.IGNORECASE,
+)
+_FALLBACK_PREFIX = {
+    "figure": "Fig",
+    "table": "Table",
+    "algorithm": "Alg",
+}
 
 
 def _ensure_dir(path: Path) -> None:
@@ -75,16 +86,161 @@ def _write_status(out_dir: Path, status: str, extra: dict | None = None) -> None
     )
 
 
-def _infer_figure_id(caption: str, fallback: str) -> str:
-    """Extract figure number from caption; e.g. 'Figure 3.' → 'Fig3'.
+def _normalize_region_kind(label_raw: str) -> str | None:
+    """Normalize layout labels to the media kind used in filenames."""
+    label = label_raw.strip().lower()
+    if "caption" in label:
+        return None
+    if "algorithm" in label or label in {"alg", "algo"}:
+        return "algorithm"
+    if "table" in label:
+        return "table"
+    if "figure" in label or label == "fig":
+        return "figure"
+    return None
+
+
+def _looks_like_caption_text(text: str) -> bool:
+    """Return True for real caption headers, not body refs like 'see Fig. 1'."""
+    normalized = " ".join(text.split())
+    return bool(_CAPTION_HEADER_RE.search(normalized))
+
+
+def _normalize_caption_number(num: str) -> str:
+    return (
+        num.replace("(", "_")
+        .replace(")", "")
+        .replace(".", "_")
+        .replace("-", "_")
+    )
+
+
+def _caption_kind_prefix(kind_text: str) -> str:
+    kind = kind_text.lower().rstrip(".")
+    if kind in {"table"}:
+        return "Table"
+    if kind in {"algorithm", "alg"}:
+        return "Alg"
+    return "Fig"
+
+
+def _caption_region_kind(caption: str) -> str | None:
+    m = _CAPTION_ID_RE.search(caption)
+    if not m:
+        return None
+    prefix = _caption_kind_prefix(m.group("kind"))
+    if prefix == "Table":
+        return "table"
+    if prefix == "Alg":
+        return "algorithm"
+    return "figure"
+
+
+def _fallback_id(region_kind: str, index: int) -> str:
+    return f"{_FALLBACK_PREFIX.get(region_kind, 'Fig')}{index}"
+
+
+def _infer_item_id(caption: str, fallback: str) -> str:
+    """Extract a stable media id from caption text.
+
+    Examples:
+      "Figure 3." -> "Fig3"
+      "Table 2: Results" -> "Table2"
+      "Algorithm 1 Training" -> "Alg1"
 
     Falls back to *fallback* if no number is found.
     """
-    m = _FIGURE_NUM_RE.search(caption)
-    if m:
-        num = m.group(1).replace("(", "_").replace(")", "").replace(".", "_")
-        return f"Fig{num}"
-    return fallback
+    m = _CAPTION_ID_RE.search(caption)
+    if not m:
+        return fallback
+    prefix = _caption_kind_prefix(m.group("kind"))
+    num = _normalize_caption_number(m.group("num"))
+    return f"{prefix}{num}"
+
+
+def _horizontal_overlap_ratio(
+    a: tuple[float, float, float, float],
+    b: tuple[float, float, float, float],
+) -> float:
+    overlap = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    width = max(1.0, min(a[2] - a[0], b[2] - b[0]))
+    return min(1.0, overlap / width)
+
+
+def _vertical_distance(
+    media_box: tuple[float, float, float, float],
+    caption_box: tuple[float, float, float, float],
+) -> float:
+    if caption_box[1] >= media_box[3]:
+        return caption_box[1] - media_box[3]
+    if media_box[1] >= caption_box[3]:
+        return media_box[1] - caption_box[3]
+    return 0.0
+
+
+def _caption_match_score(
+    media_box: tuple[float, float, float, float],
+    caption_box: tuple[float, float, float, float],
+) -> float:
+    gap = _vertical_distance(media_box, caption_box)
+    if gap > 160:
+        return -1.0
+    horizontal = _horizontal_overlap_ratio(media_box, caption_box)
+    below_bonus = 0.3 if caption_box[1] >= media_box[3] else 0.05
+    return horizontal * 2.0 + (1.0 / (1.0 + gap / 30.0)) + below_bonus
+
+
+def _collect_caption_blocks(
+    text_blocks: list[tuple],
+    caption_regions: list[tuple[float, float, float, float]],
+) -> list[tuple[float, float, float, float, str]]:
+    captions: list[tuple[float, float, float, float, str]] = []
+    seen: set[tuple[int, int, int, int, str]] = set()
+
+    for block in text_blocks:
+        bx0, by0, bx1, by1, btext, *_ = block
+        text = " ".join(str(btext).split())
+        if not text:
+            continue
+
+        bbox = (float(bx0), float(by0), float(bx1), float(by1))
+        region_match = any(
+            _horizontal_overlap_ratio(bbox, region) > 0.4
+            and _vertical_distance(bbox, region) < 30
+            for region in caption_regions
+        )
+        if not _looks_like_caption_text(text) and not (
+            region_match and _CAPTION_ID_RE.search(text)
+        ):
+            continue
+
+        key = (
+            round(bbox[0]),
+            round(bbox[1]),
+            round(bbox[2]),
+            round(bbox[3]),
+            text,
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        captions.append((*bbox, text))
+
+    return sorted(captions, key=lambda item: (item[1], item[0]))
+
+
+def _select_caption_for_region(
+    media_box: tuple[float, float, float, float],
+    captions: list[tuple[float, float, float, float, str]],
+) -> tuple[float, float, float, float, str] | None:
+    best = None
+    best_score = -1.0
+    for caption in captions:
+        score = _caption_match_score(media_box, caption[:4])
+        if score > best_score:
+            best = caption
+            best_score = score
+    return best if best_score > 0 else None
 
 
 def _resolve_model_file(model_ref: str) -> str | None:
@@ -176,6 +332,7 @@ def extract_figures(
     document = fitz.open(str(pdf_path))
     figures: list[dict] = []
     seen_ids: set[str] = set()
+    fallback_counts = {"figure": 0, "table": 0, "algorithm": 0}
 
     # --- Load layout model ---
     # doclayout-yolo 0.0.4's from_pretrained has a GitHub release check bug.
@@ -215,12 +372,10 @@ def extract_figures(
         if not results:
             continue
 
-        # Collect figure/table regions + captions
+        # Collect figure/table/algorithm regions + caption regions
         names = results[0].names
-        # (x0, y0, x1, y1, score)
-        figure_boxes: list[tuple[float, float, float, float, float]] = []
-        # (x0, y0, x1, y1, text)
-        caption_boxes: list[tuple[float, float, float, float, str]] = []
+        media_boxes: list[dict] = []
+        caption_regions: list[tuple[float, float, float, float]] = []
 
         # Determine scale from rendered image to PDF coords
         img_w, img_h = pix.width, pix.height
@@ -238,51 +393,49 @@ def extract_figures(
                 xyxy[3] * scale_y,
             )
 
-            if label in ("figure", "fig", "table"):
-                figure_boxes.append((*pdf_box, float(box.conf[0])))
-            elif label == "caption":
-                caption_boxes.append(pdf_box + (label_raw,))
+            region_kind = _normalize_region_kind(label_raw)
+            if region_kind:
+                media_boxes.append(
+                    {
+                        "bbox": pdf_box,
+                        "score": float(box.conf[0]),
+                        "kind": region_kind,
+                        "label": label_raw,
+                    }
+                )
+            elif "caption" in label:
+                caption_regions.append(pdf_box)
 
-        if not figure_boxes:
+        if not media_boxes:
             continue
 
-        # For each figure box, find the nearest caption text
-        for _idx, (fx0, fy0, fx1, fy1, score) in enumerate(figure_boxes):
+        text_blocks = page.get_text("blocks")
+        caption_blocks = _collect_caption_blocks(text_blocks, caption_regions)
+        media_boxes.sort(key=lambda item: (item["bbox"][1], item["bbox"][0]))
+
+        # For each media box, find the nearest real caption text
+        for media in media_boxes:
             if len(figures) >= max_figures:
                 break
 
+            fx0, fy0, fx1, fy1 = media["bbox"]
+            score = media["score"]
+            region_kind = media["kind"]
             caption_text = ""
+            best_caption = _select_caption_for_region(
+                media["bbox"],
+                caption_blocks,
+            )
 
-            # Find closest caption (nearest below the figure)
-            best_caption = None
-            best_gap = float("inf")
-            for cx0, cy0, cx1, cy1, ctext in caption_boxes:
-                gap = cy0 - fy1
-                if 0 <= gap < best_gap and gap < 100:
-                    best_gap = gap
-                    best_caption = (cx0, cy0, cx1, cy1, ctext)
-
-            # Extract caption text from page text blocks
             if best_caption:
-                cx0, cy0, cx1, cy1, ctext = best_caption
-                blocks = page.get_text("blocks")
-                for block in blocks:
-                    bx0, by0, bx1, by1, btext, *_ = block
-                    if (
-                        abs(bx0 - cx0) < 20
-                        and abs(by0 - cy0) < 20
-                        and abs(bx1 - cx1) < 50
-                        and abs(by1 - cy1) < 20
-                    ):
-                        caption_text = btext.strip()
-                        break
-                if not caption_text:
-                    caption_text = ctext
+                caption_text = best_caption[4]
+                region_kind = _caption_region_kind(caption_text) or region_kind
 
-            # Derive figure id from caption BEFORE cropping (so the filename
-            # reflects the paper's own figure number, e.g. "Figure 3" → Fig3).
-            fallback_id = f"Fig{len(figures) + 1}"
-            fig_id = _infer_figure_id(caption_text, fallback_id) if caption_text else fallback_id
+            # Derive id from caption BEFORE cropping (so the filename reflects
+            # the paper's own media number: Figure 3 -> Fig3, Table 1 -> Table1).
+            fallback_counts[region_kind] += 1
+            fallback_id = _fallback_id(region_kind, fallback_counts[region_kind])
+            fig_id = _infer_item_id(caption_text, fallback_id)
 
             if fig_id in seen_ids:
                 suffix = 2
@@ -298,7 +451,13 @@ def extract_figures(
                 min(page_w, fx1 + pad),
                 min(
                     page_h,
-                    fy1 + pad + (30 if best_caption else 0),
+                    fy1
+                    + pad
+                    + (
+                        min(80.0, max(0.0, best_caption[3] - fy1 + 4.0))
+                        if best_caption and best_caption[1] >= fy1
+                        else 0.0
+                    ),
                 ),
             )
             fig_pix = page.get_pixmap(
@@ -318,6 +477,7 @@ def extract_figures(
                 figures.append(
                     {
                         "id": fig_id,
+                        "kind": region_kind,
                         "caption": caption_text,
                         "path": f"{fig_id}.png",
                         "page": page_num + 1,
@@ -344,7 +504,7 @@ def extract_figures(
 # CLI entry
 # ---------------------------------------------------------------------------
 
-def main() -> None:
+def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Zotero AI — PDF Figure Extractor"
     )
@@ -389,6 +549,11 @@ def main() -> None:
         default="juliozhao/DocLayout-YOLO-DocStructBench",
         help="DocLayout-YOLO model path or HF repo",
     )
+    return parser
+
+
+def main() -> None:
+    parser = build_arg_parser()
 
     args = parser.parse_args()
 

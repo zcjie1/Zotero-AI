@@ -12,6 +12,7 @@ pref-section-model = 🤖 模型参数
 pref-section-prompt = 📝 提示词
 pref-section-vision = 🖼️ 图片提取
 pref-enable-vision = 启用 Vision 图片分析（需要 Python + doclayout-yolo）
+pref-max-figures = 每篇论文最大提取数量
 pref-python-path = Python 路径
 pref-python-script-path = 图片提取脚本路径
 pref-section-display = 📄 笔记设置

@@ -1,4 +1,6 @@
 menuitem-ai-parse = 🤖 AI Parse
+menuitem-ai-parse-reuse = ✨ Smart Reuse Parse
+menuitem-ai-parse-refresh = 🔄 Fresh Extraction Parse
 ai-parse-error-disabled = AI parsing is disabled
 ai-parse-error-no-api-key = Please configure API key in preferences first
 ai-parse-error-no-endpoint = Please configure API endpoint in preferences first

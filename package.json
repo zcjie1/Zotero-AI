@@ -1,7 +1,7 @@
 {
   "name": "zotero-ai",
   "type": "module",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Zotero AI 插件 - 使用 AI 解析 PDF 附件并生成笔记",
   "config": {
     "addonName": "Zotero AI",
@@ -20,8 +20,8 @@
   "scripts": {
     "start": "zotero-plugin serve",
     "build": "zotero-plugin build && tsc --noEmit",
-    "lint:check": "prettier --check . && eslint .",
-    "lint:fix": "prettier --write . && eslint . --fix",
+    "lint:check": "prettier --check --ignore-unknown package.json package-lock.json eslint.config.mjs zotero-plugin.config.ts \"src/**/*.ts\" \"typings/**/*.ts\" \"addon/**/*.{js,json,xhtml}\" && eslint src typings eslint.config.mjs zotero-plugin.config.ts",
+    "lint:fix": "prettier --write --ignore-unknown package.json package-lock.json eslint.config.mjs zotero-plugin.config.ts \"src/**/*.ts\" \"typings/**/*.ts\" \"addon/**/*.{js,json,xhtml}\" && eslint src typings eslint.config.mjs zotero-plugin.config.ts --fix",
     "release": "zotero-plugin release",
     "test": "zotero-plugin test"
   },

@@ -13,3 +13,4 @@ pref("showHeader", false);
 pref("pythonPath", "python");
 pref("pythonScriptPath", "");
 pref("enableVision", true);
+pref("maxFigures", 5);

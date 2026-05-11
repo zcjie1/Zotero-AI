@@ -1,4 +1,6 @@
 menuitem-ai-parse = 🤖 AI 解析
+menuitem-ai-parse-reuse = ✨ 智能复用解析
+menuitem-ai-parse-refresh = 🔄 全新提取解析
 ai-parse-error-disabled = AI 解析功能未启用
 ai-parse-error-no-api-key = 请先在偏好设置中配置 API 密钥
 ai-parse-error-no-endpoint = 请先在偏好设置中配置 API 端点

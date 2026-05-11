@@ -255,6 +255,31 @@
       <span data-l10n-id="pref-enable-vision"></span>
     </html:label>
 
+    <!-- Max Figures -->
+    <hbox align="center">
+      <html:label
+        for="zotero-prefpane-__addonRef__-maxFigures"
+        data-l10n-id="pref-max-figures"
+        style="min-width: 100px; font-size: 13px; font-weight: 500"
+      ></html:label>
+      <html:input
+        type="number"
+        id="zotero-prefpane-__addonRef__-maxFigures"
+        preference="maxFigures"
+        value="5"
+        min="1"
+        max="50"
+        step="1"
+        style="
+          width: 80px;
+          padding: 6px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 13px;
+        "
+      ></html:input>
+    </hbox>
+
     <!-- Python Path -->
     <hbox align="center">
       <html:label

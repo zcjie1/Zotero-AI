@@ -18,6 +18,7 @@ declare namespace _ZoteroTypes {
       "pythonPath": string;
       "pythonScriptPath": string;
       "enableVision": boolean;
+      "maxFigures": number;
     };
   }
 }

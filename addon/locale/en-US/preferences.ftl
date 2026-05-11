@@ -12,6 +12,7 @@ pref-section-model = 🤖 Model Parameters
 pref-section-prompt = 📝 Prompt
 pref-section-vision = 🖼️ Figure Extraction
 pref-enable-vision = Enable Vision-based figure analysis (requires Python + doclayout-yolo)
+pref-max-figures = Max figures per paper
 pref-python-path = Python Path
 pref-python-script-path = Figure extractor script path
 pref-section-display = 📄 Note Settings

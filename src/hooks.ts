@@ -1,7 +1,7 @@
 import { getString, initLocale } from "./utils/locale";
 import { registerPrefsScripts } from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
-import { parseItemsWithAI, type ParseTaskResult } from "./modules/aiParse";
+import { parseItemsWithAI, type AIParseOptions } from "./modules/aiParse";
 import { config } from "../package.json";
 import { DialogHelper } from "zotero-plugin-toolkit";
 
@@ -27,15 +27,7 @@ async function onStartup() {
     menuID: `${config.addonRef}-item-parse-menu`,
     pluginID: config.addonID,
     target: "main/library/item",
-    menus: [
-      {
-        menuType: "menuitem",
-        l10nID: `${config.addonRef}-menuitem-ai-parse`,
-        onCommand: async (_event: Event, _context: unknown) => {
-          await onAIParseSelected();
-        },
-      },
-    ],
+    menus: buildParseModeMenus(),
   });
 
   // Register File menu item
@@ -43,15 +35,7 @@ async function onStartup() {
     menuID: `${config.addonRef}-file-parse-menu`,
     pluginID: config.addonID,
     target: "main/menubar/file",
-    menus: [
-      {
-        menuType: "menuitem",
-        l10nID: `${config.addonRef}-menuitem-ai-parse`,
-        onCommand: async (_event: Event, _context: unknown) => {
-          await onAIParseSelected();
-        },
-      },
-    ],
+    menus: buildParseModeMenus(),
   });
 
   await Promise.all(
@@ -70,7 +54,7 @@ async function onMainWindowLoad(win: _ZoteroTypes.MainWindow): Promise<void> {
   );
 }
 
-async function onMainWindowUnload(win: Window): Promise<void> {
+async function onMainWindowUnload(_win: Window): Promise<void> {
   addon.data.dialog?.window?.close();
 }
 
@@ -84,7 +68,26 @@ function onShutdown(): void {
 /**
  * Handle AI parsing of selected items
  */
-async function onAIParseSelected() {
+function buildParseModeMenus(): _ZoteroTypes.MenuManager.MenuData[] {
+  return [
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-menuitem-ai-parse-reuse`,
+      onCommand: async (_event: Event, _context: unknown) => {
+        await onAIParseSelected({ figureCacheMode: "reuse" });
+      },
+    },
+    {
+      menuType: "menuitem",
+      l10nID: `${config.addonRef}-menuitem-ai-parse-refresh`,
+      onCommand: async (_event: Event, _context: unknown) => {
+        await onAIParseSelected({ figureCacheMode: "refresh" });
+      },
+    },
+  ];
+}
+
+async function onAIParseSelected(options: AIParseOptions) {
   const zp = Zotero.getActiveZoteroPane();
   if (!zp) return;
 
@@ -111,7 +114,7 @@ async function onAIParseSelected() {
   addon.data.dialog = dialog;
 
   // Start parallel parsing (don't await, let it run in background)
-  runParallelParse(dialog, regularItems);
+  runParallelParse(dialog, regularItems, options);
 }
 
 // ---------------------------------------------------------------------------
@@ -177,35 +180,43 @@ function buildStatusDialog(items: Zotero.Item[]): DialogHelper {
   return dlg as DialogHelper;
 }
 
-async function runParallelParse(dialog: DialogHelper, items: Zotero.Item[]) {
+async function runParallelParse(
+  dialog: DialogHelper,
+  items: Zotero.Item[],
+  options: AIParseOptions,
+) {
   const win = dialog.window;
   if (!win) return;
 
   const summaryEl = win.document.getElementById("zoteroai-status-summary");
 
   try {
-    const { success, failed } = await parseItemsWithAI(items, (results) => {
-      for (const r of results) {
-        const iconEl = win.document.getElementById(
-          `zoteroai-icon-${r.item.id}`,
-        );
-        const textEl = win.document.getElementById(
-          `zoteroai-text-${r.item.id}`,
-        );
-        if (iconEl) iconEl.textContent = STATUS_ICONS[r.status] || "\u2753";
-        if (textEl) {
-          if (r.error) {
-            textEl.innerHTML = `${escapeHtml(r.title)} <span style="color:#ef4444;font-size:11px;">(${escapeHtml(r.error)})</span>`;
+    const { success, failed } = await parseItemsWithAI(
+      items,
+      (results) => {
+        for (const r of results) {
+          const iconEl = win.document.getElementById(
+            `zoteroai-icon-${r.item.id}`,
+          );
+          const textEl = win.document.getElementById(
+            `zoteroai-text-${r.item.id}`,
+          );
+          if (iconEl) iconEl.textContent = STATUS_ICONS[r.status] || "\u2753";
+          if (textEl) {
+            if (r.error) {
+              textEl.innerHTML = `${escapeHtml(r.title)} <span style="color:#ef4444;font-size:11px;">(${escapeHtml(r.error)})</span>`;
+            }
+          }
+          if (summaryEl) {
+            const done = results.filter(
+              (x) => x.status === "done" || x.status === "failed",
+            ).length;
+            summaryEl.innerHTML = `<span style="color:inherit;opacity:0.7;font-weight:600;">${done}/${results.length} 已完成</span>`;
           }
         }
-        if (summaryEl) {
-          const done = results.filter(
-            (x) => x.status === "done" || x.status === "failed",
-          ).length;
-          summaryEl.innerHTML = `<span style="color:inherit;opacity:0.7;font-weight:600;">${done}/${results.length} 已完成</span>`;
-        }
-      }
-    });
+      },
+      options,
+    );
 
     if (summaryEl) {
       if (failed === 0) {
@@ -245,11 +256,11 @@ async function onPrefsEvent(type: string, data: { [key: string]: any }) {
   }
 }
 
-function onShortcuts(type: string) {
+function onShortcuts(_type: string) {
   // Reserved for keyboard shortcuts
 }
 
-function onDialogEvents(type: string) {
+function onDialogEvents(_type: string) {
   // Reserved for dialog events
 }
 
