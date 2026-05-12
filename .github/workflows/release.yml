@@ -25,4 +25,19 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run release
+      - name: Publish tagged release
+        if: github.event_name == 'push'
+        run: npm run release
+
+      - name: Build update manifests
+        if: github.event_name == 'workflow_dispatch'
+        run: npm run build
+
+      - name: Upload update manifests
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view release >/dev/null 2>&1 || gh release create release --title "Release Manifest" --prerelease --latest=false --notes "This release is used to host update manifests for Zotero automatic updates."
+          gh release upload release .scaffold/build/update.json .scaffold/build/update-beta.json --clobber
+          gh release edit release --title "Release Manifest" --prerelease --notes "This release is used to host update manifests for Zotero automatic updates."
