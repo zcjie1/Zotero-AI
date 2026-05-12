@@ -18,4 +18,4 @@ pref-install-runtime = 安装/修复运行时
 pref-python-path = Python 路径（可选覆盖）
 pref-python-script-path = 图片提取脚本路径
 pref-section-display = 📄 笔记设置
-pref-help = 构建信息: { "zotero_ai" } { "1.1.0" } @ { "2026-05" }
+pref-help = 构建信息: { $name } { $version } @ { $time }

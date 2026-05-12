@@ -18,4 +18,4 @@ pref-install-runtime = Install/Repair Runtime
 pref-python-path = Python Path (optional override)
 pref-python-script-path = Figure extractor script path
 pref-section-display = 📄 Note Settings
-pref-help = Build Info: { "zotero_ai" } { "1.1.0" } @ { "2026-05" }
+pref-help = Build Info: { $name } { $version } @ { $time }
