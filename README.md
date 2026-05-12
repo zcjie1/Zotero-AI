@@ -32,36 +32,35 @@
 | API 端点     | OpenAI 兼容 API 基地址（不含 `/v1`） | `https://api.openai.com` |
 | API 密钥     | 你的 API Key                         | —                        |
 | 模型名称     | 模型 ID                              | `gpt-4o`                 |
-| 温度参数     | 输出随机性 (0–2)                     | `0.7`                    |
-| 最大 Token   | 回复长度上限                         | `4096`                   |
+| 温度参数     | 输出随机性 (0–2)                     | `1`                    |
+| 最大 Token   | 回复长度上限                         | `8192`                   |
 | 系统提示词   | 指导 AI 分析的指令                   | （学术论文分析模板）     |
 | 笔记首行标注 | 是否在笔记中显示解析元信息           | 关闭                     |
 
 ### 图表提取（可选）
 
-若要启用图表提取，需额外配置 Python 环境：
+Windows x64 用户无需手动填写图片提取脚本路径。XPI 内置：
 
-```bash
-# 1. 创建 conda 环境
-conda create --prefix ./python/.venv python=3.10 -y
-conda install --prefix ./python/.venv pytorch cpuonly -c pytorch -y
-conda run --prefix ./python/.venv pip install -r python/requirements.txt
+- `extract_figures.py` 提取脚本
+- DocLayout-YOLO DocStructBench 模型
+- 最小 Python + pip 启动运行时
 
-# 2. 下载模型（仅需一次）
-conda run --prefix ./python/.venv python python/download_model.py
-```
+首次使用前，在 Zotero 偏好设置的 **图片提取** 区域点击
+**安装/修复运行时**。插件会把内置脚本和模型复制到 Zotero 数据目录，并在
+`zoteroai-runtime/win-x64/` 中安装 PyTorch CPU、PyMuPDF、doclayout-yolo 等完整依赖。
 
-然后在 Zotero 偏好设置中配置：
+可配置项：
 
-| 设置项          | 说明                                 | 示例值                                        |
-| --------------- | ------------------------------------ | --------------------------------------------- |
-| 🐍 Python 路径  | 指向 conda 环境中的 python.exe       | `D:\Code\zotero-ai\python\.venv\python.exe`   |
-| 📜 提取脚本路径 | extract_figures.py 的完整路径        | `D:\Code\zotero-ai\python\extract_figures.py` |
-| 👁️ 启用视觉识别 | 是否将图片发送给多模态模型分析       | 开启 / 关闭                                   |
-| 最大提取数量    | 每篇论文最多提取多少个图表/表格/算法 | `5`                                           |
+| 设置项             | 说明                                       | 默认值      |
+| ------------------ | ------------------------------------------ | ----------- |
+| 图片提取运行时     | 安装或修复托管的 win-x64 Python 运行时     | 手动点击    |
+| Python 路径        | 可选覆盖项，通常留空以使用托管运行时       | 留空        |
+| 启用 Vision        | 是否提取图片并发送给支持视觉输入的云端模型 | 开启 / 关闭 |
+| 最大提取数量       | 每篇论文最多提取多少个图表/表格/算法       | `5`         |
 
-- **Vision 开启**：图片随全文一起发送给 LLM，模型可在笔记正文中用 `[[FIGURE:Fig1.png]]` 标记图片位置
-- **Vision 关闭**：仅提取图片，自动追加到笔记末尾
+- **Vision 开启**：插件会提取图片，并将图片随全文一起发送给云端大模型；此模式要求当前 API 和模型支持视觉输入，模型可在笔记正文中用 `[[FIGURE:Fig1.png]]` 标记图片位置
+- **Vision 关闭**：不会提取图片，也不会调用图片识别流程，仅对 PDF 中已索引的纯文字内容进行解析
+- 内置脚本和模型会复制到 Zotero 数据目录下的 `zoteroai-runtime/assets/`。
 - 提取结果会保存到 Zotero 数据目录下的 `zoteroai-figures/item_<条目ID>/`，包含 `figures.json` 和裁剪图片。
 - 文件名会根据 caption 类型区分为 `Fig1.png`、`Table1.png`、`Alg1.png` 等，减少正文说明和图片错配。
 
@@ -93,17 +92,20 @@ zotero-ai/
 │   ├── content/
 │   │   ├── preferences.xhtml # 设置面板 UI
 │   │   └── icons/            # 图标
+│   ├── python/               # 打包进 XPI 的图片提取脚本和模型
+│   ├── runtime/              # 打包进 XPI 的 win-x64 最小 Python 运行时
 │   └── locale/               # 中英文翻译
 ├── python/
-│   ├── requirements.txt      # Python 依赖
-│   ├── download_model.py     # 模型下载脚本（仅需运行一次）
-│   └── extract_figures.py    # PDF 图表提取 CLI
+│   ├── requirements.txt      # 开发环境 Python 依赖
+│   ├── download_model.py     # 开发时下载模型
+│   └── extract_figures.py    # PDF 图表提取 CLI 源文件
 └── src/
     ├── index.ts              # 入口
     ├── addon.ts              # 插件主类
     ├── hooks.ts              # 生命周期 & 菜单 & 状态窗口
     ├── modules/
     │   ├── aiParse.ts        # AI 解析核心 + 图表提取调度 + Markdown 渲染
+    │   ├── runtime.ts        # 托管 Python 运行时和内置模型管理
     │   └── preferenceScript.ts
     └── utils/                # 工具函数
 ```

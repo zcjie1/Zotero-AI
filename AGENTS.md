@@ -29,6 +29,7 @@ src/
 ├── hooks.ts              # 生命周期钩子 & UI 注册（菜单、偏好设置、状态窗口）
 ├── modules/
 │   ├── aiParse.ts        # AI 解析核心：PDF 提取 → API 调用 → Markdown 渲染 → 创建笔记
+│   ├── runtime.ts        # win-x64 托管 Python 运行时、内置脚本和模型管理
 │   └── preferenceScript.ts
 └── utils/
     ├── ztoolkit.ts        # ZoteroToolkit 初始化（日志、UI、API）
@@ -46,9 +47,11 @@ addon/
 ├── locale/                # 中英文 FTL 翻译文件
 │   ├── en-US/
 │   └── zh-CN/
-└── python/                # Python 图片提取脚本（打包进 XPI）
-    ├── extract_figures.py # DocLayout-YOLO + PyMuPDF 提取 PDF 图表
-    └── requirements.txt   # pip 依赖清单
+├── python/                # Python 图片提取脚本和模型（打包进 XPI）
+│   ├── extract_figures.py # DocLayout-YOLO + PyMuPDF 提取 PDF 图表
+│   ├── requirements.txt   # pip 依赖清单
+│   └── models/            # 内置 DocLayout-YOLO 模型
+└── runtime/               # win-x64 最小 Python + pip 启动运行时（打包进 XPI）
 
 python/                    # 项目级 Python 环境（不打包）
 └── .venv/                 # conda 虚拟环境（Python 3.10 + PyTorch + 依赖）
@@ -118,7 +121,7 @@ PDF 附件 → Zotero 全文索引 (att.attachmentText) → 拼接 user message
 | **LaTeX 公式**         | Markdown 渲染器中 `$` 公式必须先保护后恢复，否则会被 HTML 转义破坏 |
 | **API 兼容性**         | 要求 `/v1/chat/completions` 接口兼容 OpenAI 格式（Bearer auth）    |
 | **并行解析无并发限制** | 多选条目时全部并行发送，注意 API 速率限制                          |
-| **Python 图片提取**    | `addon/python/extract_figures.py` 通过 `Zotero.Utilities.Internal.exec` 调用，需用户在偏好设置中配置 Python 路径（如 conda env 的 python.exe）；首次运行自动下载 DocLayout-YOLO 模型到 `~/.cache/huggingface/`；Vision 模式默认开启，关闭时图片自动追加到笔记末尾 |
+| **Python 图片提取**    | XPI 内置 `addon/python/extract_figures.py`、DocLayout-YOLO 模型和 win-x64 最小 Python；设置面板“安装/修复运行时”会安装完整依赖到 Zotero 数据目录的 `zoteroai-runtime/win-x64/`；Vision 关闭时不提取图片，直接进行纯文字解析 |
 
 ## Reference: Python AI Paper Reading Pipeline
 

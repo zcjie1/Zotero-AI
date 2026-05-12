@@ -280,7 +280,38 @@
       ></html:input>
     </hbox>
 
-    <!-- Python Path -->
+    <!-- Runtime Installer -->
+    <hbox align="center">
+      <html:label
+        for="zotero-prefpane-__addonRef__-installRuntime"
+        data-l10n-id="pref-python-runtime"
+        style="min-width: 100px; font-size: 13px; font-weight: 500"
+      ></html:label>
+      <html:button
+        type="button"
+        id="zotero-prefpane-__addonRef__-installRuntime"
+        data-l10n-id="pref-install-runtime"
+        style="
+          padding: 6px 10px;
+          border: 1px solid #d1d5db;
+          border-radius: 6px;
+          font-size: 13px;
+          cursor: pointer;
+        "
+      ></html:button>
+    </hbox>
+
+    <html:div
+      id="zoteroai-runtime-status"
+      style="
+        margin-left: 100px;
+        color: #6b7280;
+        font-size: 12px;
+        line-height: 1.5;
+      "
+    ></html:div>
+
+    <!-- Optional Python Path Override -->
     <hbox align="center">
       <html:label
         for="zotero-prefpane-__addonRef__-pythonPath"
@@ -291,29 +322,7 @@
         type="text"
         id="zotero-prefpane-__addonRef__-pythonPath"
         preference="pythonPath"
-        placeholder="python"
-        style="
-          flex: 1;
-          padding: 6px 10px;
-          border: 1px solid #d1d5db;
-          border-radius: 6px;
-          font-size: 13px;
-        "
-      ></html:input>
-    </hbox>
-
-    <!-- Python Script Path -->
-    <hbox align="center">
-      <html:label
-        for="zotero-prefpane-__addonRef__-pythonScriptPath"
-        data-l10n-id="pref-python-script-path"
-        style="min-width: 100px; font-size: 13px; font-weight: 500"
-      ></html:label>
-      <html:input
-        type="text"
-        id="zotero-prefpane-__addonRef__-pythonScriptPath"
-        preference="pythonScriptPath"
-        placeholder="D:\Code\zotero-ai\python\extract_figures.py"
+        placeholder="自动使用内置运行时"
         style="
           flex: 1;
           padding: 6px 10px;

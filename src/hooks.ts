@@ -1,5 +1,8 @@
 import { getString, initLocale } from "./utils/locale";
-import { registerPrefsScripts } from "./modules/preferenceScript";
+import {
+  ensureDefaultPrefs,
+  registerPrefsScripts,
+} from "./modules/preferenceScript";
 import { createZToolkit } from "./utils/ztoolkit";
 import { parseItemsWithAI, type AIParseOptions } from "./modules/aiParse";
 import { config } from "../package.json";
@@ -13,6 +16,7 @@ async function onStartup() {
   ]);
 
   initLocale();
+  ensureDefaultPrefs();
 
   // Register preference pane
   Zotero.PreferencePanes.register({

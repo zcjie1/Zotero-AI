@@ -1,5 +1,6 @@
 import { getPref } from "../utils/prefs";
 import { getString } from "../utils/locale";
+import { ensureFigureRuntimeAssets, resolveFigurePythonPath } from "./runtime";
 
 /**
  * AI Parse Module — ZoteroAI
@@ -48,45 +49,6 @@ async function buildTextContent(pdf: Zotero.Item): Promise<string | null> {
   const extracted = await getAttText(pdf);
   if (!extracted || extracted.trim().length === 0) return null;
   return `### ${filename}\n\`\`\`\n${extracted}\n\`\`\``;
-}
-
-// ---------------------------------------------------------------------------
-// Resolve pythonw.exe from configured pythonPath (no console window on Windows)
-// ---------------------------------------------------------------------------
-
-function resolvePythonwPath(): string | null {
-  const configured = (getPref("pythonPath") as string) || "";
-  if (!configured.trim()) return null;
-
-  const trimmed = configured.trim();
-
-  // If user already configured pythonw.exe, use it as-is
-  if (trimmed.toLowerCase().endsWith("pythonw.exe")) {
-    return trimmed;
-  }
-
-  // Derive pythonw.exe from python.exe path
-  const pythonw = trimmed.replace(/python\.exe$/i, "pythonw.exe");
-  if (pythonw !== trimmed) {
-    return pythonw;
-  }
-
-  return trimmed;
-}
-
-// ---------------------------------------------------------------------------
-// Python script path — read from user preference.
-// ---------------------------------------------------------------------------
-
-async function getPythonScriptPath(): Promise<string | null> {
-  const userPath = (getPref("pythonScriptPath") as string) || "";
-  if (userPath.trim()) return userPath.trim();
-
-  ztoolkit.log(
-    "[AI Parse] pythonScriptPath not configured, skipping figure extraction. " +
-      'Set it in Zotero preferences under "🖼️ 图片提取".',
-  );
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,10 +152,10 @@ async function extractFiguresWithPython(
   outputDir: string,
   maxFigures: number,
 ): Promise<ExtractResult | null> {
-  const pythonPath = resolvePythonwPath();
+  const pythonPath = await resolveFigurePythonPath();
   if (!pythonPath) {
     ztoolkit.log(
-      "[AI Parse] pythonPath not configured, skipping figure extraction",
+      "[AI Parse] Cannot resolve Python runtime, skipping figure extraction",
     );
     return null;
   }
@@ -204,7 +166,9 @@ async function extractFiguresWithPython(
     return null;
   }
 
-  const scriptPath = await getPythonScriptPath();
+  const assets = await ensureFigureRuntimeAssets();
+  const userScriptPath = ((getPref("pythonScriptPath") as string) || "").trim();
+  const scriptPath = userScriptPath || assets.scriptPath;
   if (!scriptPath) {
     ztoolkit.log(
       "[AI Parse] Cannot locate extract_figures.py, skipping figure extraction",
@@ -232,14 +196,19 @@ async function extractFiguresWithPython(
   }
 
   try {
-    const result = await Zotero.Utilities.Internal.exec(pythonPath, [
+    const args = [
       "-u",
       scriptPath,
       pdfPath,
       outputDir,
       "--max-figures",
       String(maxFigures),
-    ]);
+    ];
+    if (assets.modelPath) {
+      args.push("--model-path", assets.modelPath);
+    }
+
+    const result = await Zotero.Utilities.Internal.exec(pythonPath, args);
     if (result instanceof Error) {
       ztoolkit.log("[AI Parse] Python exec returned Error:", String(result));
     } else {
@@ -606,9 +575,9 @@ export async function parseItemWithAI(
     throw new Error(getString("ai-parse-error-no-content"));
   }
 
-  // --- Figure extraction (always runs when pythonPath is configured) ---
-  // - enableVision=true  → send images to LLM, use [[FIGURE:xxx]] placeholders
-  // - enableVision=false → extract figures but append them at end of note
+  // --- Figure extraction (uses managed runtime when available) ---
+  // - enableVision=true  → extract images and send them to LLM
+  // - enableVision=false → skip extraction entirely and use text-only parsing
   let figureBase64Map: Map<string, FigureImage> | undefined;
   const visionImages: Array<{
     filename: string;
@@ -616,42 +585,45 @@ export async function parseItemWithAI(
     caption: string;
   }> = [];
 
-  const tempDir = PathUtils.join(
-    Zotero.DataDirectory.dir,
-    "zoteroai-figures",
-    `item_${item.id}`,
-  );
-  try {
-    let extractResult: ExtractResult | null = null;
+  if (enableVision) {
+    const tempDir = PathUtils.join(
+      Zotero.DataDirectory.dir,
+      "zoteroai-figures",
+      `item_${item.id}`,
+    );
+    try {
+      let extractResult: ExtractResult | null = null;
 
-    if (figureCacheMode === "refresh") {
-      try {
-        await IOUtils.remove(tempDir, { recursive: true });
-      } catch {
-        // Cache may not exist yet
+      if (figureCacheMode === "refresh") {
+        try {
+          await IOUtils.remove(tempDir, { recursive: true });
+        } catch {
+          // Cache may not exist yet
+        }
+      } else {
+        extractResult = await readCachedFigures(tempDir, maxFigures);
       }
-    } else {
-      extractResult = await readCachedFigures(tempDir, maxFigures);
-    }
 
-    if (!extractResult) {
-      extractResult = await extractFiguresWithPython(
-        pdfs[0],
-        tempDir,
-        maxFigures,
-      );
-    }
+      if (!extractResult) {
+        extractResult = await extractFiguresWithPython(
+          pdfs[0],
+          tempDir,
+          maxFigures,
+        );
+      }
 
-    if (extractResult && extractResult.figures.length > 0) {
-      figureBase64Map = new Map();
+      if (extractResult && extractResult.figures.length > 0) {
+        figureBase64Map = new Map();
 
-      for (const fig of extractResult.figures) {
-        const image = await loadFigureAsBase64(extractResult.tempDir, fig.path);
-        if (!image) continue;
+        for (const fig of extractResult.figures) {
+          const image = await loadFigureAsBase64(
+            extractResult.tempDir,
+            fig.path,
+          );
+          if (!image) continue;
 
-        figureBase64Map.set(fig.path, image);
+          figureBase64Map.set(fig.path, image);
 
-        if (enableVision) {
           visionImages.push({
             filename: fig.path,
             base64: image.dataURI,
@@ -659,17 +631,17 @@ export async function parseItemWithAI(
           });
         }
       }
+    } catch (e) {
+      ztoolkit.log(
+        "[AI Parse] Figure extraction failed, continuing text-only:",
+        e,
+      );
     }
-  } catch (e) {
-    ztoolkit.log(
-      "[AI Parse] Figure extraction failed, continuing text-only:",
-      e,
-    );
   }
 
   // --- Build user message ---
   // When vision is enabled, include figure list + [[FIGURE:xxx]] instruction.
-  // When vision is disabled, don't mention figures (they'll be appended later).
+  // When vision is disabled, don't mention or extract figures.
   const figureList =
     enableVision && visionImages.length > 0
       ? `\n提取到的图片及原标题：\n${visionImages.map((i) => `- ${i.filename}: ${i.caption || "(无标题)"}`).join("\n")}`
