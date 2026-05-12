@@ -1,6 +1,7 @@
 name: Release
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - "v*"
@@ -11,8 +12,12 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
@@ -20,10 +25,4 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: .scaffold/build/*.xpi
-          generate_release_notes: true
+      - run: npm run release
