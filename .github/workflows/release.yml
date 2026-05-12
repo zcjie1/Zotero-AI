@@ -38,6 +38,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          VERSION=$(node -p "require('./package.json').version")
+          RELEASE_TAG="v${VERSION}"
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || gh release create "$RELEASE_TAG" --title "Release ${RELEASE_TAG}" --latest --notes "Release ${RELEASE_TAG}"
+          gh release upload "$RELEASE_TAG" .scaffold/build/*.xpi --clobber
           gh release view release >/dev/null 2>&1 || gh release create release --title "Release Manifest" --prerelease --latest=false --notes "This release is used to host update manifests for Zotero automatic updates."
           gh release upload release .scaffold/build/update.json .scaffold/build/update-beta.json --clobber
           gh release edit release --title "Release Manifest" --prerelease --notes "This release is used to host update manifests for Zotero automatic updates."
